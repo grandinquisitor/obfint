@@ -1,4 +1,8 @@
-from math import log, ceil
+
+"""
+Obfuscate or "encrypt" integer values
+"""
+
 
 def add(input, key, rang, reverse=False):
     if not reverse:
@@ -9,7 +13,7 @@ def add(input, key, rang, reverse=False):
 
 def xor(input, key, rang, reverse=False):
     return input ^ key
-    
+ 
 def bitswap(input, key, rang, reverse=False):
     if not reverse:
         gen = ((i, key[i]) for i in xrange(0, rang))
@@ -67,15 +71,20 @@ def decr(input, keys):
 
 def keygen(n=3, bitlen=8):
     assert n > 1
-    assert log(bitlen, 2) % 1 == 0
+    #assert log(bitlen, 2) % 1 == 0
 
     import random
     maxi = (1 << bitlen) - 1
 
     randint = lambda: random.randint(1, maxi)
-    randbitkey = lambda: tuple(random.randint(0, maxi) for x in xrange(0, bitlen))
+    randbitpos = lambda: random.randint(1, bitlen-1)
+    randbitkey = lambda: tuple(random.randint(0, bitlen-1) for x in xrange(0, bitlen))
 
-    new_key = lambda test: test == bitswap and randbitkey() or randint()
+    key_func = {
+        shift: randbitpos,
+        add: randint,
+        bitswap: randbitkey,
+        xor: randint}
 
     tests = (shift, bitswap, add, xor)
 
@@ -85,10 +94,11 @@ def keygen(n=3, bitlen=8):
     i = 0
     while i < n:
         choice = random.choice(tests)
-        if choice != last_choice or choice == bitswap:
-            chosen.append((choice, new_key(choice)))
-            last_choice = choice
-            i += 1
+        if choice != last_choice or choice == bitswap: # dont repeat, unless a bitswap
+            if (i > 2 and i != n - 1) or choice != add: # add can't appear in the 1st 2 and can't be last
+                chosen.append((choice, key_func[choice]()))
+                last_choice = choice
+                i += 1
 
     chosen.insert(0, bitlen)
 
@@ -98,7 +108,7 @@ def serialize_keys(keys):
     bitlen = keys[0]
     maxlen = len(str(hex(bitlen)[2:]))
     sep = ':'
-    fhex = lambda s: ("%X" % s).zfill(maxlen)
+    fhex = lambda s: ("%x" % s).zfill(maxlen)
     s = str(fhex(bitlen))
     for meth, k in keys[1:]:
         s += (sep * 2) + meth.__name__[0].upper() + sep
@@ -134,45 +144,45 @@ def unserialize_keys(s):
 
     
 
-keys = keygen(n=7, bitlen=16)
-#from pprint import pprint
-#pprint(keys)
-ser = serialize_keys(keys)
-print ser
-print keys
-print unserialize_keys(ser)
-assert keys == unserialize_keys(serialize_keys(keys))
+if __name__ == '__main__':
+    keys = keygen(n=7, bitlen=8)
+    #from pprint import pprint
+    #pprint(keys)
+    ser = serialize_keys(keys)
+    print ser
+    print keys
+    print unserialize_keys(ser)
+    assert keys == unserialize_keys(serialize_keys(keys))
 
-lksdjf
+
+    if False:
+        keys = (
+            8, # the bit range
+            (bitswap, [3, 1, 4, 5, 0, 2, 4, 1]),
+            (xor, 97),
+            (add, 33),
+            (bitswap, [6, 6, 6, 6, 3, 1, 1, 7]),
+            (shift, 2),
+            (add, 254),
+            (xor, 34),
+            (shift, 4),
+            (xor, 31),
+            (bitswap, [7, 4, 7, 6, 0, 1, 5, 6]),
+            (xor, 123),
+        )
 
 
-if False:
-    keys = (
-        8, # the bit range
-        (bitswap, [3, 1, 4, 5, 0, 2, 4, 1]),
-        (xor, 97),
-        (add, 33),
-        (bitswap, [6, 6, 6, 6, 3, 1, 1, 7]),
-        (shift, 2),
-        (add, 254),
-        (xor, 34),
-        (shift, 4),
-        (xor, 31),
-        (bitswap, [7, 4, 7, 6, 0, 1, 5, 6]),
-        (xor, 123),
-    )
-
-k = 99
-er = encr(k, keys)
-dr = decr(er, keys)
-
-print k, er, dr
-
-found = set()
-for i in xrange(1, 255):
-    er = encr(i, keys)
+    k = 99
+    er = encr(k, keys)
     dr = decr(er, keys)
-    found.add(dr)
-    assert len(found) == i
-    assert i==dr
-    print i, er
+
+    print k, er, dr
+
+    found = set()
+    for i in xrange(1, 255):
+        er = encr(i, keys)
+        dr = decr(er, keys)
+        found.add(dr)
+        assert len(found) == i
+        assert i==dr, (i, dr)
+        #print i, er

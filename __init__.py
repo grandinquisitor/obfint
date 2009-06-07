@@ -3,6 +3,8 @@
 Obfuscate or "encrypt" integer values
 """
 
+from math import log
+
 
 def add(input, key, rang, reverse=False):
     if not reverse:
@@ -66,12 +68,15 @@ def decr(input, keys):
         input = meth(input, key, rang, True)
     return input
 
-# to generate a bitswap map = [random.randint(rang) for x in xrange(rang)]
 
+def keygen(n=3, bitlen=8, use=(shift, bitswap, add, xor)):
+    if not n > 1: raise ValueError
+    if not log(bitlen, 2) % 1 == 0: raise ValueError
 
-def keygen(n=3, bitlen=8):
-    assert n > 1
-    #assert log(bitlen, 2) % 1 == 0
+    possible_tests = set((shift, bitswap, add, xor))
+    if not hasattr(use, '__getitem__') and callable(use.__getitem__): raise TypeError
+    if any(tf not in possible_tests for tf in use): raise ValueError
+    tests_to_use = use
 
     import random
     maxi = (1 << bitlen) - 1
@@ -86,14 +91,13 @@ def keygen(n=3, bitlen=8):
         bitswap: randbitkey,
         xor: randint}
 
-    tests = (shift, bitswap, add, xor)
 
     chosen = []
     last_choice = None
 
     i = 0
     while i < n:
-        choice = random.choice(tests)
+        choice = random.choice(tests_to_use)
         if choice != last_choice or choice == bitswap: # dont repeat, unless a bitswap
             if (i > 2 and i != n - 1) or choice != add: # add can't appear in the 1st 2 and can't be last
                 chosen.append((choice, key_func[choice]()))
@@ -145,7 +149,7 @@ def unserialize_keys(s):
     
 
 if __name__ == '__main__':
-    keys = keygen(n=7, bitlen=8)
+    keys = keygen(n=8, bitlen=8, use=(bitswap,))
     #from pprint import pprint
     #pprint(keys)
     ser = serialize_keys(keys)

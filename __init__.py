@@ -56,6 +56,7 @@ def shift(n, rotations=1, width=8, reverse=False):
 
 
 
+
 class obfint(object):
          
     def __init__(self, key):
@@ -77,7 +78,7 @@ class obfint(object):
         """
         serialize this object
         """
-        self._serialize_keys(self.keys)
+        return self._serialize_keys(self.keys)
 
 
     @classmethod
@@ -90,6 +91,7 @@ class obfint(object):
         if not log(bitlen, 2) % 1 == 0: raise ValueError
 
         possible_tests = set((shift, bitswap, add, xor)) # TODO: move to member functions
+
         if not hasattr(use, '__getitem__') and callable(use.__getitem__): raise TypeError
         if any(tf not in possible_tests for tf in use): raise ValueError
 
@@ -126,7 +128,7 @@ class obfint(object):
 
         chosen.insert(0, bitlen)
 
-        return cls.serialize_keys(tuple(chosen))
+        return cls._serialize_keys(tuple(chosen))
 
     @staticmethod
     def _serialize_keys(keys):

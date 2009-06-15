@@ -5,7 +5,6 @@ Obfuscate or "encrypt" integer values
 
 from math import log
 
-
 def add(input, key, rang, reverse=False):
     if not reverse:
         input = (input + key) % (1 << rang)
@@ -54,99 +53,125 @@ def shift(n, rotations=1, width=8, reverse=False):
             return n
         n &= mask(width)
         return (n >> rotations) | ((n << (width - rotations)) & mask(width))
-     
-
-def encr(input, keys):
-    rang = keys[0]
-    for meth, key in keys[1:]:
-        input = meth(input, key, rang)
-    return input
-
-def decr(input, keys):
-    rang = keys[0]
-    for meth, key in reversed(keys[1:]):
-        input = meth(input, key, rang, True)
-    return input
 
 
-def keygen(n=3, bitlen=8, use=(shift, bitswap, add, xor)):
-    if not n > 1: raise ValueError
-    if not log(bitlen, 2) % 1 == 0: raise ValueError
 
-    possible_tests = set((shift, bitswap, add, xor))
-    if not hasattr(use, '__getitem__') and callable(use.__getitem__): raise TypeError
-    if any(tf not in possible_tests for tf in use): raise ValueError
-    tests_to_use = use
+class obfint(object):
+         
+    def __init__(self, key):
+        self.keys = self._unserialize_keys(key)
 
-    import random
-    maxi = (1 << bitlen) - 1
+    def encr(self, input):
+        rang = self.keys[0]
+        for meth, key in self.keys[1:]:
+            input = meth(input, key, rang)
+        return input
 
-    randint = lambda: random.randint(1, maxi)
-    randbitpos = lambda: random.randint(1, bitlen-1)
-    randbitkey = lambda: tuple(random.randint(0, bitlen-1) for x in xrange(0, bitlen))
+    def decr(self, input):
+        rang = self.keys[0]
+        for meth, key in reversed(self.keys[1:]):
+            input = meth(input, key, rang, True)
+        return input
 
-    key_func = {
-        shift: randbitpos,
-        add: randint,
-        bitswap: randbitkey,
-        xor: randint}
+    def serialize(self):
+        """
+        serialize this object
+        """
+        self._serialize_keys(self.keys)
 
 
-    chosen = []
-    last_choice = None
+    @classmethod
+    def keygen(cls, n=3, bitlen=8, use=(shift, bitswap, add, xor)): # TODO: move to member functions
+        """
+        generate a new key
+        """
 
-    i = 0
-    while i < n:
-        choice = random.choice(tests_to_use)
-        if choice != last_choice or choice == bitswap: # dont repeat, unless a bitswap
-            if (i > 2 and i != n - 1) or choice != add: # add can't appear in the 1st 2 and can't be last
-                chosen.append((choice, key_func[choice]()))
-                last_choice = choice
-                i += 1
+        if not n > 1: raise ValueError
+        if not log(bitlen, 2) % 1 == 0: raise ValueError
 
-    chosen.insert(0, bitlen)
+        possible_tests = set((shift, bitswap, add, xor)) # TODO: move to member functions
+        if not hasattr(use, '__getitem__') and callable(use.__getitem__): raise TypeError
+        if any(tf not in possible_tests for tf in use): raise ValueError
 
-    return tuple(chosen)
+        # FIXME: possible types here will mess up
 
-def serialize_keys(keys):
-    bitlen = keys[0]
-    maxlen = len(str(hex(bitlen)[2:]))
-    sep = ':'
-    fhex = lambda s: ("%x" % s).zfill(maxlen)
-    s = str(fhex(bitlen))
-    for meth, k in keys[1:]:
-        s += (sep * 2) + meth.__name__[0].upper() + sep
-        if meth == bitswap:
-            s += sep.join(map(fhex, k))
-        else:
-            s += fhex(k)
-    return s
+        tests_to_use = use
 
-def unserialize_keys(s):
-    sep = ':'
-    meth_map = {'X': xor, 'B': bitswap, 'S': shift, 'A': add}
-    unhex = lambda i: int(i, 16)
+        import random
+        maxi = (1 << bitlen) - 1
 
-    k_parts = s.split(sep * 2)
-    bit_len = unhex(k_parts[0])
+        randint = lambda: random.randint(1, maxi)
+        randbitpos = lambda: random.randint(1, bitlen-1)
+        randbitkey = lambda: tuple(random.randint(0, bitlen-1) for x in xrange(0, bitlen))
 
-    keys = [bit_len]
+        # TODO: move to member functions
+        key_func = {
+            shift: randbitpos,
+            add: randint,
+            bitswap: randbitkey,
+            xor: randint}
 
-    for part in k_parts[1:]:
-        k_parts = part.split(sep)
-        meth = meth_map[k_parts[0]]
-        if meth != bitswap:
-            assert len(k_parts) == 2
-            meth_key = unhex(k_parts[1])
-        else:
-            assert len(k_parts) == bit_len + 1
-            meth_key = tuple(map(unhex, k_parts[1:]))
 
-        keys.append((meth, meth_key))
+        chosen = []
+        last_choice = None
 
-    return tuple(keys)
+        i = 0
+        while i < n:
+            choice = random.choice(tests_to_use)
+            if choice != last_choice or choice == bitswap: # dont repeat, unless a bitswap
+                if (i > 2 and i != n - 1) or choice != add: # add can't appear in the 1st 2 and can't be last
+                    chosen.append((choice, key_func[choice]()))
+                    last_choice = choice
+                    i += 1
 
-    
+        chosen.insert(0, bitlen)
+
+        return cls.serialize_keys(tuple(chosen))
+
+    @staticmethod
+    def _serialize_keys(keys):
+        bitlen = keys[0]
+        maxlen = len(str(hex(bitlen)[2:]))
+        sep = ':'
+        fhex = lambda s: ("%x" % s).zfill(maxlen)
+        s = str(fhex(bitlen))
+        for meth, k in keys[1:]:
+            s += (sep * 2) + meth.__name__[0].upper() + sep
+            if meth == bitswap:
+                s += sep.join(map(fhex, k))
+            else:
+                s += fhex(k)
+        return s
+
+    @staticmethod
+    def _unserialize_keys(s):
+        sep = ':'
+        meth_map = {'X': xor, 'B': bitswap, 'S': shift, 'A': add}
+        unhex = lambda i: int(i, 16)
+
+        k_parts = s.split(sep * 2)
+        bit_len = unhex(k_parts[0])
+
+        keys = [bit_len]
+
+        for part in k_parts[1:]:
+            k_parts = part.split(sep)
+            meth = meth_map[k_parts[0]]
+            if meth != bitswap:
+                assert len(k_parts) == 2
+                meth_key = unhex(k_parts[1])
+            else:
+                assert len(k_parts) == bit_len + 1
+                meth_key = tuple(map(unhex, k_parts[1:]))
+
+            keys.append((meth, meth_key))
+
+        return tuple(keys)
+
+
+keygen = obfint.keygen
+
+        
 
 if __name__ == '__main__':
     keys = keygen(n=8, bitlen=8, use=(bitswap,))
